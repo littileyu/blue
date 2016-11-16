@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+	<title></title>
+</head>
+<style>
+	html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;font-family: "微软雅黑";}
+div,img{width:100%;}
+div,img,ul,li,span,p,a{margin:0;padding:0;list-style: none;}
+
+.opa_0{opacity: 0;}
+.none{display:none}
+
+.can{width:100%;height: 100%;}
+</style>
+<body>
+	<canvas id="can" class="can"></canvas>
+</body>
+</html>
+<script>
+	window.onload=function(){
+	init();
+}
+var config={
+	left:12,///////地图左边距离
+	top:50,////////地图顶距离
+	r:14,//////////圆点半径
+	space:2,//////圆点间距离
+	rows:9,
+	cols:9,
+	minNum:7,////////初始黄色圆点个数
+	maxNum:11,////////初始黄色圆点个数
+	bgColor:"#686868",
+	aColor:"#F58A5D",//////圆点颜色
+	cColor:"#ABABAB"//////已围圆点颜色
+}
+var next=[[0,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0]];
+var next1=[[0,1],[1,1],[1,0],[0,-1],[-1,0],[-1,1]];
+var can,ctx;
+var data,tempdata,dataP;
+var gamer;
+var blueP;
+var isClosed=false;
+var Row=4,Col=4;
+function init(){
+	can=document.getElementById("can");
+	can.width=window.innerWidth;
+	can.height=window.innerHeight;
+	config.r=Math.floor(window.innerWidth/320*config.r);
+	config.width=config.r*2*config.cols+config.space*(config.cols-1)+config.r+1;
+	config.height=config.r*2*config.rows;
+	config.left=(window.innerWidth-config.width)/2;
+	config.top=window.innerHeight-config.height-50;
+	ctx=can.getContext("2d");
+	/////初始地图
+	initMap();
+	gameInit();
+	gameStart();
+}
+function gameInit(){
+	blueP=new bluePoint();
+	gamer=new game();
+	gamer.onframe=function(){
+		draw(blueP.getColor());
+	}
+	addEvent();
+}
+function gameStart(){
+	data[Math.floor(config.rows/2)][Math.floor(config.cols/2)]=2;
+	gamer.start();
+}
+function gameEnd(){
+	gamer.stop();
+}
+function addEvent(){
+	can.addEventListener("touchstart",function(e){
+		e.preventDefault();
+		var x=e.changedTouches[0].clientX;
+		var y=e.changedTouches[0].clientY;
+		for(var i=0;i<dataP.length;i++){
+			for(var j=0;j<dataP[i].length;j++){
+				if(dataP[i][j].x-config.r<=x&&dataP[i][j].x+config.r>=x&&dataP[i][j].y-config.r<=y&&dataP[i][j].y+config.r>=y){
+					if(data[i][j]==2||data[i][j]==1)return;
+					data[i][j]=1;
+					isClose(Row,Col);
+					if(isClosed){
+						blueP.setTime(100);
+					}
+					var t=blueP.run();
+					if(t.state){
+						if(t.state=="run"){
+							alert("跑掉了");
+							return;
+						}
+						if(t.state=="close"){
+							console.log("完全被围住了");
+							return;
+						}
+					}else{
+						data[t.lastRow][t.lastCol]=0;
+						Row=t.row;
+						Col=t.col;
+						data[t.row][t.col]=2;
+					}
+					break;
+				}
+			}
+		}
+	})
+}
+function initMap(){
+	data=[];
+	tempdata=[];
+	dataP=[];/////位置数据
+	for(var i=0;i<config.rows;i++){
+		data[i]=[];
+		tempdata[i]=[];
+		for(var j=0;j<config.cols;j++){
+			data[i].push(0);
+			tempdata[i].push(0);
+		}
+	}
+	for(var i=0;i<data.length;i++){
+		dataP[i]=[];
+		for(var j=0;j<data[i].length;j++){
+			if(i%2==0){
+				var x=config.left+config.r+config.r*2*j+config.space*j;
+				var y=config.top+config.r+config.r*2*i;
+			}else{
+				var x=config.left+config.r*2+1+config.r*2*j+config.space*j;
+				var y=config.top+config.r+config.r*2*i;
+			}
+			dataP[i].push({x:x,y:y});
+		}
+	}
+	var nums=config.minNum+Math.floor(Math.random()*(config.maxNum-config.minNum+1));
+	for(var i=0;i<nums;i++){
+		var row=Math.floor(Math.random()*config.rows);
+		var col=Math.floor(Math.random()*config.cols);
+		data[row][col]=1;
+	}
+}
+function draw(c){
+	ctx.clearRect(0,0,can.width,can.height);
+	ctx.fillStyle=config.bgColor;
+	ctx.fillRect(0,0,can.width,can.height);
+	for(var i=0;i<data.length;i++){
+		for(var j=0;j<data[i].length;j++){
+			if(data[i][j]==0){
+				ctx.fillStyle=config.cColor;
+			}else if(data[i][j]==1){
+				ctx.fillStyle=config.aColor;
+			}else if(data[i][j]==2){
+				ctx.fillStyle=c;
+			}
+			ctx.beginPath();
+			ctx.arc(dataP[i][j].x,dataP[i][j].y,config.r,0,2*Math.PI);
+			ctx.fill();
+			ctx.closePath();
+		}
+	}
+}
+function isClose(row,col){
+	var sRow,sCol;
+	var num=0;
+	var path;
+	initData();
+	for(var j=0;j<config.cols;j++){
+		if(data[row][j]==1){
+			path=[];
+			sRow=row;
+			sCol=j;
+			nextStep(sRow,sCol);
+			num=0;
+		}
+	}
+	function initData(){
+		for(var i=0;i<tempdata.length;i++){
+			for(var j=0;j<tempdata[i].length;j++){
+				tempdata[i][j]=0;
+			}
+		}
+	}
+	function nextStep(r,c){
+		var type;
+		var nRow,nCol;
+		num++;
+		tempdata[r][c]=1;
+		path.push({row:r,col:c});
+		if(r%2==0){
+			type="next";
+		}else{
+			type="next1";
+		}
+		for(var i=0;i<next.length;i++){
+			if(type=="next"){
+				nRow=r+next[i][0];
+				nCol=c+next[i][1];
+			}else{
+				nRow=r+next1[i][0];
+				nCol=c+next1[i][1];
+			}
+			
+			if(nRow<0||nRow>=config.rows||nCol<0||nCol>=config.cols){
+				continue;
+			}
+			if(data[nRow][nCol]==1){
+				if(nRow==sRow&&nCol==sCol&&num>=6){
+					var left,right;
+					for(var i=0;i<path.length;i++){
+						if(path[i].row==row){
+							if(path[i].col<col){
+								left=true;
+							}
+							if(path[i].col>col){
+								right=true;
+							}
+						}
+					}
+					if(left&&right){
+						isClosed=true;
+						console.log("围住了")
+					}
+					return;
+				}
+				if(tempdata[nRow][nCol]==0){
+					nextStep(nRow,nCol);
+					path.pop();
+					num--;
+				}
+			}
+		}
+	}
+}
+function game(){
+	var self=this;
+	var se;
+	self.onframe=function(){};
+	self.start=function(){
+		se=setInterval(self.onframe,33);
+	}
+	self.stop=function(){
+		clearInterval(se);
+	}
+}
+function bluePoint(){
+	var self=this;
+	var color=["#0170cf","#12a2d8"];
+	var cColor=0;
+	var p={row:4,col:4};
+	var temp={row:0,col:0};
+	var runPath=[],nodes;
+	var lastRow=4;
+	var lastCol=4;
+	var cNode={row:4,col:4};
+	var m=0;
+	var openList,searchList;
+	var nn;
+	var tempRunPath;
+	var times=350;
+	var se;
+	self.run=function(){
+		var con=true;
+		//////路径有没堵塞
+		for(var i=0;i<runPath.length;i++){
+			if(data[runPath[i].row][runPath[i].col]==1){
+				con=false;
+				break;
+			}
+		}
+		//////没堵塞继续
+		if(runPath.length>0&&con){
+			lastRow=cNode.row;
+			lastCol=cNode.col;
+			cNode=runPath[0];
+			runPath.splice(0,1);
+			return {row:cNode.row,col:cNode.col,lastRow:lastRow,lastCol:lastCol};/////返回下一步
+		}
+		//////重新开始生成路径
+		m=0;
+		p.row=cNode.row;
+		p.col=cNode.col;
+		runPath=[];
+		searchList=[];
+		tempRunPath=[];
+		//////找出当前位置的各方向节点
+		nodes=findNode({row:p.row,col:p.col},0);
+		if(nodes instanceof Array){
+			if(nodes.length==0){
+				return {state:"close"};/////被围住
+			}
+		}else{
+			return {state:"run"};//跑掉了
+		}
+		/////寻找各方向节点的最短路
+		for(var n=0;n<nodes.length;n++){
+			openList=[];
+			openList.push({row:nodes[n].row,col:nodes[n].col});
+			p.row=nodes[n].row;
+			p.col=nodes[n].col;
+			//////开始寻找各节点最短路
+			pathFind(nodes[n].row,nodes[n].col,n);
+			///////得出某个节点的所有路线
+			for(var k=0;k<openList.length;k++){
+				if(openList[k].row==0||openList[k].col==0||openList[k].row==config.rows-1||openList[k].col==config.cols-1){
+					tempRunPath[tempRunPath.length]=[];
+					createPath(openList[k].row,openList[k].col,k);
+				}
+			}
+			if(tempRunPath.length==0){
+				tempRunPath[tempRunPath.length]=[];
+				createPath(openList[openList.length-1].row,openList[openList.length-1].col,openList.length-1);
+			}
+		}
+		function createPath(r,c,m){
+			tempRunPath[tempRunPath.length-1].push({row:r,col:c});
+			if(openList[m].pRow==undefined)return;
+			var t={row:openList[m].pRow,col:openList[m].pCol};
+			for(var i=0;i<openList.length;i++){
+				if(openList[i].row==t.row&&openList[i].col==t.col){
+					t.n=i;
+					createPath(openList[t.n].row,openList[t.n].col,t.n);
+					break;
+				}
+			}
+		}
+		
+		m=null;
+		for(var i=0;i<tempRunPath.length;i++){
+			if(tempRunPath[i].length>0){
+				if(tempRunPath[i][0].row==0||tempRunPath[i][0].col==0||tempRunPath[i][0].row==config.rows-1||tempRunPath[i][0].col==config.cols-1){
+					m=i;
+					break;
+				}
+			}
+		}
+		if(m==null){
+			m=0;
+			for(var i=1;i<tempRunPath.length;i++){
+				if(tempRunPath[m].length>tempRunPath[i].length){
+					m=i;
+				}
+			}
+		}else{
+			for(var i=m+1;i<tempRunPath.length;i++){
+				if(tempRunPath[i][0].row==0||tempRunPath[i][0].col==0||tempRunPath[i][0].row==config.rows-1||tempRunPath[i][0].col==config.cols-1){
+					if(tempRunPath[m].length>tempRunPath[i].length){
+						m=i;
+					}
+				}
+			}
+		}
+		if(tempRunPath.length>0){
+			for(var i=tempRunPath[m].length-1;i>=0;i--){
+				runPath.push({row:tempRunPath[m][i].row,col:tempRunPath[m][i].col});
+			}
+		}
+		lastRow=cNode.row;
+		lastCol=cNode.col;
+		cNode=runPath[0];
+		runPath.splice(0,1);
+		return {row:cNode.row,col:cNode.col,lastRow:lastRow,lastCol:lastCol};/////返回下一步
+	}
+	//////找出与当前节点相连的各个节点
+	function findNode(rc,s){
+		var path=[];
+		var temp={};
+		for(var i=0;i<next.length;i++){
+			if(rc.row%2==0){
+				temp.row=rc.row+next[i][0];
+				temp.col=rc.col+next[i][1];
+			}else{
+				temp.row=rc.row+next1[i][0];
+				temp.col=rc.col+next1[i][1];
+			}
+			if(temp.row<0||temp.row>=config.rows||temp.col<0||temp.col>=config.cols){
+				if(s==0){
+					return {state:"run"};//////跑掉了
+				}else{
+					return [];
+				}
+			}
+			if(data[temp.row][temp.col]!=1){
+				path.push({row:temp.row,col:temp.col});
+			}
+		}
+		return path;
+	}
+	function pathFind(r,c,m){
+		var path=findNode({row:r,col:c},1);
+		for(var i=0;i<path.length;i++){
+			if(path[i].row==nodes[m].row&&path[i].col==nodes[m].col){
+				path.splice(i,1);
+				i--;
+			}
+		}
+		for(var i=0;i<path.length;i++){
+			for(var j=0;j<openList.length;j++){
+				if(openList[j].row==path[i].row&&openList[j].col==path[i].col&&openList[j].pRow==r&&openList[j].pCol==c){
+					path.splice(i,1);
+					i--;
+					break;
+				}
+			}
+		}
+		for(var i=0;i<path.length;i++){
+			openList.push({row:path[i].row,col:path[i].col,pRow:r,pCol:c});
+		}
+		for(var i=0;i<path.length;i++){
+			pathFind(path[i].row,path[i].col,m);
+		}
+	}
+	self.getColor=function(){
+		return color[cColor];
+	}
+	self.setTime=function(t){
+		times=t;
+	}
+	changeColor();
+	function changeColor(){
+		cColor=cColor==0?1:0;
+		setTimeout(changeColor,times);
+	};
+}
+
+
+
+
+</script>
